@@ -1,0 +1,8 @@
+EKF_PREDICTION:
+  period: 0.05 # time in seconds in order to have the 20 Hz requested by the problem
+  number of landmarks: 9 #number of landmarks in the problem 
+  alpha_1: 
+  alpha_2: 
+  alpha_3: 
+  alpha_4: 
+  
