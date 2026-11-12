@@ -7,7 +7,7 @@ import tf_transformations
 
 
 from nav_msgs.msg import Odometry
-from landmark_msgs.msg import LandmarkArray # not found why ? 
+
 
 class RobotEKF(Node):
 
@@ -137,9 +137,13 @@ class RobotEKF(Node):
 
               angular_pos= math.atan2(y_obs-y,x_obs-x)-theta
 
-              distances[id]=np.array([lin_distance],[angular_pos])
+              self.distances[id]=np.array([lin_distance],[angular_pos])
 
-          return distances
+          return self.distances
+
+     def eval_Ht(self, coordinates, mu):
+
+          
 
 
 
@@ -152,12 +156,12 @@ class RobotEKF(Node):
          
 
 
-    def prediction_callback(self):
+     def prediction_callback(self):
 
          u=np.array([[self.v],[self.w]])
-         prev_mu=self.mu
+        
 
-         self.mu=self.eval_mu
+         
 
 
 

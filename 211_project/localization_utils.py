@@ -1,0 +1,124 @@
+import math
+import matplotlib.pyplot as plt
+import matplotlib as mpl
+import numpy
+import sympy
+from sympy import symbols, Matrix, latex
+sympy.init_printing(use_latex='mathjax')
+from scipy.stats import norm
+
+arrow = u'$\u2191$'
+
+def wrap_angle(a):
+    """Wrap an angle to [-pi, pi)."""
+    return (a + math.pi) % (2 * math.pi) - math.pi 
+
+def compute_motion_jacobian():
+    x, y, theta, v, w, dt = symbols('x y theta v w dt')
+    R = v / w
+    beta = theta + w * dt
+    gux = Matrix(
+        [
+            [x - R * sympy.sin(theta) + R * sympy.sin(beta)],
+            [y + R * sympy.cos(theta) - R * sympy.cos(beta)],
+            [beta],
+        ]
+    )
+
+    Gt = gux.jacobian(Matrix([x, y, theta]))
+    Vt = gux.jacobian(Matrix([v, w]))
+
+    args = (x, y, theta, v, w, dt)    
+    eval_gux = sympy.lambdify(args, gux, 'numpy')
+    eval_Gt = sympy.lambdify(args, Gt, "numpy")
+    eval_Vt = sympy.lambdify(args, Vt, "numpy")
+
+    return Gt, Vt, gux, eval_gux, eval_Gt, eval_Vt
+
+
+def compute_measurement_jacobian():
+    x, y, theta = symbols('x y theta')
+    mx, my = symbols("m_x m_y")
+    hx = Matrix(
+        [
+            [sympy.sqrt((mx - x) ** 2 + (my - y) ** 2)],
+            [sympy.atan2(my - y, mx - x) - theta],
+        ]
+    )
+
+    Ht = hx.jacobian(Matrix([x, y, theta]))
+    eval_hx = sympy.lambdify((x, y, theta, mx, my), hx, "numpy")
+    eval_Ht = sympy.lambdify((x, y, theta, mx, my), Ht, "numpy")    
+
+    return Ht, hx, eval_hx, eval_Ht
+
+def evaluate_sampling_dist(mu, sigma, n_samples, sample_function, n_bins=100, title="plot"):
+    """ 
+    Evaluate the sampling distribution by generating samples, 
+    computing mean and std dev, and plotting a histogram. 
+    """
+    samples = []
+
+    for i in range(n_samples):
+        samples.append(sample_function(mu, sigma))
+
+    print("%30s : mean = %.3f, std_dev = %.3f" % ("Normal", numpy.mean(samples), numpy.std(samples)))
+
+    plt.figure()
+    plt.hist(samples, n_bins)
+    plt.xlim([mu - 5*sigma, mu + 5*sigma])
+    plt.title("Normal distribution of samples")
+    plt.grid()
+    plt.savefig(title + ".png")
+    return plt
+
+def plot_sampled_model(x, x_sampled, title="", n_plot=500):
+    plt.figure()
+
+    # Plot sampled data in red    
+    for x_ in x_sampled[:n_plot]:
+        rotated_marker = mpl.markers.MarkerStyle(marker=arrow)
+        rotated_marker._transform = rotated_marker.get_transform().rotate_deg(degrees(x_[2])-90)
+        plt.scatter(x_[0], x_[1], marker=rotated_marker, s=40, facecolors='none', edgecolors='r')
+
+    # Plot robot initial pose in blue
+    rotated_marker = mpl.markers.MarkerStyle(marker=arrow)
+    rotated_marker._transform = rotated_marker.get_transform().rotate_deg(degrees(x[2])-90)
+    plt.scatter(x[0], x[1], marker=rotated_marker, s=100, facecolors='none', edgecolors='b')
+
+    # Append initial pose to same view as samples
+    """
+    xs = numpy.append(x_sampled[:, 0], x[0])
+    ys = numpy.append(x_sampled[:, 1], x[1])
+    pad = 0.08 * max(numpy.ptp(xs), numpy.ptp(ys))
+    plt.xlim(xs.min() - pad, xs.max() + pad)
+    plt.ylim(ys.min() - pad, ys.max() + pad)
+    plt.gca().set_aspect('equal', adjustable='box')
+    """
+
+    plt.xlabel("x-position [m]")
+    plt.ylabel("y-position [m]")
+    plt.title(title)
+    plt.savefig(title + '.png')
+    return plt
+
+def compute_p_hit_dist(dist, max_dist, sigma):
+    """
+    Compute the hit probability p_hit for a given distance measurement using scipy.
+    Args:
+        dist: observed distance measurement
+        max_dist: maximum measurable distance
+        sigma: standard deviation of the Gaussian noise
+    Returns:
+        p_hit: normalized hit probability
+    """
+
+    # Normalize the Gaussian PDF with the CDF probability computed over [0, max_dist]
+    normalize_hit = norm.cdf(max_dist, loc=0, scale=sigma) - norm.cdf(0, loc=0, scale=sigma)
+    normalize_hit = 1. / normalize_hit
+
+    p_hit = norm.pdf(dist, loc=0, scale=sigma) * normalize_hit
+    p_hit = numpy.where((dist > max_dist) | (dist < 0.0), 0.0, p_hit)  # Set p_hit to 0 for distances greater than max_dist or negative anomalies
+
+    return p_hit
+
