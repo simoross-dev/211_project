@@ -11,7 +11,7 @@ from landmark_msgs.msg import LandmarkArray # not found why ?
 
 class RobotEKF(Node):
 
-    def __init__(self,dim_x=3,dim_u=2,eval_mu=None,eval_Gt=None,eval_Vt=None):
+     def __init__(self,dim_x=3,dim_u=2,eval_mu=None,eval_Gt=None,eval_Vt=None):
 
         super().__init__('EKF_prediction')
 
@@ -20,7 +20,7 @@ class RobotEKF(Node):
         self.coordinates_z=self.declare_parameter('z',[0.5, 1.5, 0.5, 1.0, 0.75, 0.3, 1.5, 1.0, 0.0]).value
         self.id=self.declare_parameter('id', [11, 12, 13, 21, 22, 23, 31, 32, 33]).value
         self.land_number=self.declare_parameter('number of landmarks',9).value
-
+        
 
         self.alpha_1=self.declare_parameter('alpha_1',0.1).value
         self.alpha_2=self.declare_parameter('alpha_2',0.1).value
@@ -39,7 +39,8 @@ class RobotEKF(Node):
 
 
             self.coordinates[i]=[float(x),float(y),float(z)]
-
+          
+          
 
         #initializes the filter variables using matrices
         self.mu=np.zeros(dim_x) #mean state value estimation
@@ -51,7 +52,7 @@ class RobotEKF(Node):
         self.eval_Vt = eval_Vt
 
         self._I = np.eye(dim_x)  # identity matrix used for computations
-
+        self.distances={}
            
 
 
@@ -60,7 +61,7 @@ class RobotEKF(Node):
 
 
 
-    def odom_callback(self,msg):
+     def odom_callback(self,msg):
 
             [self.x_act,self.y_act,self.z_act]=[msg.pose.pose.position.x,
                                  msg.pose.pose.position.y,
@@ -79,7 +80,7 @@ class RobotEKF(Node):
          
 
             
-    def eval_Gt(self,u,prev_state,dt): #jacobian with respect to the state (x,y,theta_z or yaw)
+     def eval_Gt(self,u,prev_state,dt): #jacobian with respect to the state (x,y,theta_z or yaw)
 
          theta=prev_state[2,0] #state stands for (x,y,theta) from the odometry message
 
@@ -92,7 +93,7 @@ class RobotEKF(Node):
          return Gt
 
 
-    def eval_Vt(self,u,prev_state,dt): #jacobian with respect to the command
+     def eval_Vt(self,u,prev_state,dt): #jacobian with respect to the command
 
          theta=prev_state[2,0]
          
@@ -104,7 +105,7 @@ class RobotEKF(Node):
 
          return Vt
 
-    def eval_Mt(self,u,alpha_1,alpha_2,alpha_3,alpha_4):
+     def eval_Mt(self,u,alpha_1,alpha_2,alpha_3,alpha_4):
 
          v,w= u[0,0], u[1,0]
 
@@ -112,18 +113,35 @@ class RobotEKF(Node):
                       [0,alpha_3*(v**2)+alpha_4*(w**2)]]) #define the alpha 
          return Mt
 
-    def eval_mu(self,u,prev_mu,dt): # evaluate the new predicted mean value
+     def eval_mu(self,u,prev_mu,dt): # evaluate the new predicted mean value
 
          theta=prev_mu[2,0]
          v,w_act= u[0,0], u[1,0]
          
-         w= min(w_act,1e-4) 
+         w= min(w_act,1e-9) 
               
          eval_mu= prev_mu + np.array([[(-v/w)*math.sin(theta)+(v/w)*math.sin(theta+w*dt)],
                                     [(v/w)*math.cos(theta)+(-v/w)*math.cos(theta+w*dt)],
                                     [w*dt]])
          return eval_mu
          
+     def distance(self,coordinates,mu):
+
+          x,y,theta= mu[0],mu[1],mu[2]
+
+          for id in coordinates:
+
+              x_obs,y_obs,_= self.coordinates[id]
+
+              lin_distance=math.hypot(x_obs-x,y_obs-y)
+
+              angular_pos= math.atan2(y_obs-y,x_obs-x)-theta
+
+              distances[id]=np.array([lin_distance],[angular_pos])
+
+          return distances
+
+
 
 
        
@@ -138,6 +156,8 @@ class RobotEKF(Node):
 
          u=np.array([[self.v],[self.w]])
          prev_mu=self.mu
+
+         self.mu=self.eval_mu
 
 
 
