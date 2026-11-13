@@ -1,7 +1,7 @@
 import math
 import matplotlib.pyplot as plt
 import matplotlib as mpl
-import numpy
+import numpy as np
 import sympy
 from sympy import symbols, Matrix, latex
 sympy.init_printing(use_latex='mathjax')
@@ -13,44 +13,86 @@ def wrap_angle(a):
     """Wrap an angle to [-pi, pi)."""
     return (a + math.pi) % (2 * math.pi) - math.pi 
 
-def compute_motion_jacobian():
-    x, y, theta, v, w, dt = symbols('x y theta v w dt')
-    R = v / w
-    beta = theta + w * dt
-    gux = Matrix(
-        [
-            [x - R * sympy.sin(theta) + R * sympy.sin(beta)],
-            [y + R * sympy.cos(theta) - R * sympy.cos(beta)],
-            [beta],
-        ]
-    )
+# def compute_motion_jacobian(self,u,state,time):
+#     x, y, theta, v, w, dt = symbols('x y theta v w dt')
+#     R = v / w
+#     beta = theta + w * dt
+#     gux = Matrix(
+#         [
+#             [x - R * sympy.sin(theta) + R * sympy.sin(beta)],
+#             [y + R * sympy.cos(theta) - R * sympy.cos(beta)],
+#             [beta],
+#         ]
+#     )
 
-    Gt = gux.jacobian(Matrix([x, y, theta]))
-    Vt = gux.jacobian(Matrix([v, w]))
+#     Gt = gux.jacobian(Matrix([x, y, theta]))
+#     Vt = gux.jacobian(Matrix([v, w]))
 
-    args = (x, y, theta, v, w, dt)    
-    eval_gux = sympy.lambdify(args, gux, 'numpy')
-    eval_Gt = sympy.lambdify(args, Gt, "numpy")
-    eval_Vt = sympy.lambdify(args, Vt, "numpy")
+#     args = (state[0],state[1],state[2],u[0],u[1],time)    
+#     eval_gux = sympy.lambdify(args, gux, 'numpy')
+#     eval_Gt = sympy.lambdify(args, Gt, "numpy")
+#     eval_Vt = sympy.lambdify(args, Vt, "numpy")
 
-    return Gt, Vt, gux, eval_gux, eval_Gt, eval_Vt
+#     return Gt, Vt, gux, eval_gux, eval_Gt, eval_Vt
 
+def eval_Gt(u,prev_state,dt): #jacobian with respect to the state (x,y,theta_z or yaw)
 
-def compute_measurement_jacobian():
-    x, y, theta = symbols('x y theta')
-    mx, my = symbols("m_x m_y")
-    hx = Matrix(
-        [
-            [sympy.sqrt((mx - x) ** 2 + (my - y) ** 2)],
-            [sympy.atan2(my - y, mx - x) - theta],
-        ]
-    )
+         theta=prev_state[2,0] #state stands for (x,y,theta) from the odometry message
 
-    Ht = hx.jacobian(Matrix([x, y, theta]))
-    eval_hx = sympy.lambdify((x, y, theta, mx, my), hx, "numpy")
-    eval_Ht = sympy.lambdify((x, y, theta, mx, my), Ht, "numpy")    
+         v,w= u[0,0], u[1,0] #velocity command from the odometry message 
 
-    return Ht, hx, eval_hx, eval_Ht
+         Gt= np.array([[1, 0, (v/w)*(-math.cos(theta)+math.cos(theta+w*dt))],
+                       [0,1,(v/w)*(-math.sin(theta)+math.sin(theta+w*dt))],
+                       [0,0,1]])
+         return Gt
+
+def eval_Vt(u,prev_state,dt): #jacobian with respect to the command
+
+         theta=prev_state[2,0]
+         
+         v,w= u[0,0], u[1,0]
+
+         Vt=np.array([[(-math.sin(theta)+math.sin(theta+w*dt))/w, (v/(w**2))*(math.sin(theta)-math.sin(theta+w*dt))+(v/w)*(math.cos(theta+w*dt)*dt)],
+                      [(1/w)*(math.cos(theta)-math.cos(w*dt)), (-v/(w**2))*(math.cos(theta)-math.cos(theta+w*dt))+(v/w)*(math.sin(theta+w*dt)*dt)],
+                      [0,dt]])
+
+         return Vt
+
+def eval_Mt(u,alpha):
+
+         v,w= u[0,0], u[1,0]
+
+         Mt=np.array([[alpha[0]*(v**2)+alpha[1]*(w**2),0],
+                      [0,alpha[2]*(v**2)+alpha[3]*(w**2)]]) #define the alpha matrix
+         return Mt
+
+def eval_mu(u,prev_mu,dt): # evaluate the new predicted mean value, does the same thing as the velocity model 
+
+         theta=prev_mu[2,0]
+         v,w_act= u[0,0], u[1,0]
+         
+         w= max(w_act,1e-9) 
+              
+         eval_mu= prev_mu + np.array([[(-v/w)*math.sin(theta)+(v/w)*math.sin(theta+w*dt)],
+                                    [(v/w)*math.cos(theta)+(-v/w)*math.cos(theta+w*dt)],
+                                    [w*dt]])
+         return eval_mu
+
+#def compute_measurement_jacobian():
+    # x, y, theta = symbols('x y theta')
+    # mx, my = symbols("m_x m_y")
+    # hx = Matrix(
+    #     [
+    #         [sympy.sqrt((mx - x) ** 2 + (my - y) ** 2)],
+    #         [sympy.atan2(my - y, mx - x) - theta],
+    #     ]
+    # )
+
+    # Ht = hx.jacobian(Matrix([x, y, theta]))
+    # eval_hx = sympy.lambdify((x, y, theta, mx, my), hx, "numpy")
+    # eval_Ht = sympy.lambdify((x, y, theta, mx, my), Ht, "numpy")    
+
+    # return Ht, hx, eval_hx, eval_Ht
 
 def evaluate_sampling_dist(mu, sigma, n_samples, sample_function, n_bins=100, title="plot"):
     """ 
