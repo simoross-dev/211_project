@@ -166,6 +166,7 @@ class RobotEKF(Node):
          Gt=localization_utils.eval_Gt(u,prev_state,dt)
          Vt=localization_utils.eval_Vt(u,prev_state,dt)
          Mt=localization_utils.eval_Mt(u,alpha)
+         Ht=localization_utils.Ht(pred_state,self.coordinates)
 
          
 

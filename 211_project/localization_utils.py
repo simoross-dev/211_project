@@ -97,7 +97,7 @@ def Ht(pred_mu, landmark_coordinates):
                     [-(y-y_obs)/math.sqrt((-x+x_obs)**2+(-y+y_obs)**2),-(x-x_obs)/math.sqrt((-x+x_obs)**2+(-y+y_obs)**2),-1])
         row.append(ht)
 
-
+        Ht=pd.DataFrame(row,columns)
 
     
     return Ht
