@@ -18,11 +18,11 @@ class RobotEKF(Node):
 
         super().__init__('EKF_prediction')
 
-        self.coordinates_x=self.declare_parameter('x',[-1.1, -1.1, -1.1, 0.0, 0.0, 0.0, 1.1, 1.1, 1.1]).value
-        self.coordinates_y=self.declare_parameter('y',[-1.1, 0.0, 1.1, -1.1, 0.0, 1.1, -1.1, 0.0, 1.1]).value
-        self.coordinates_z=self.declare_parameter('z',[0.5, 1.5, 0.5, 1.0, 0.75, 0.3, 1.5, 1.0, 0.0]).value
-        self.id=self.declare_parameter('id', [11, 12, 13, 21, 22, 23, 31, 32, 33]).value
-        self.land_number=self.declare_parameter('number of landmarks',9).value
+        self.coordinates_x=self.declare_parameter('x',[1.207,2.975,4.074,3.744,0.922,2.563,3.951,2.209,4.556,4.314]).value
+        self.coordinates_y=self.declare_parameter('y',0.769,1.358,0.579,0.309,-0.746,0.421,-0.515,0.710,1.251,-0.452).value
+        
+        self.id=self.declare_parameter('id', [1,2,3,4,5,6,7,8,9,10,11,12,13,14]).value
+        
         
 
         self.alpha_1=self.declare_parameter('alpha_1',0.1).value
@@ -154,11 +154,14 @@ class RobotEKF(Node):
          dim_x=3
 
          if self.mu==np.zeros(dim_x):
-              self.mu=np.array([x(1),x(0),x(2)])
+              prev_state=np.array([x[0],x[1],x[2]])
+              prev_sigma=np.eye(dim_x)
          else:
-              prev_state=self.mu
+              prev_state=corrected_state
+              prev_sigma=corrected_sigma
 
-         self.mu=localization_utils.eval_mu(u,prev_state,dt)
+        
+         pred_state=localization_utils.eval_mu(u,prev_state,dt)
 
          Gt=localization_utils.eval_Gt(u,prev_state,dt)
          Vt=localization_utils.eval_Vt(u,prev_state,dt)

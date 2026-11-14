@@ -1,8 +1,10 @@
+
 import math
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import numpy as np
 import sympy
+import pandas as pd
 from sympy import symbols, Matrix, latex
 sympy.init_printing(use_latex='mathjax')
 from scipy.stats import norm
@@ -77,6 +79,28 @@ def eval_mu(u,prev_mu,dt): # evaluate the new predicted mean value, does the sam
                                     [(v/w)*math.cos(theta)+(-v/w)*math.cos(theta+w*dt)],
                                     [w*dt]])
          return eval_mu
+
+def Qt(measurement_noise):
+    """Construct the measurement noise covariance matrix Q."""
+    return np.diag([measurement_noise[0] ** 2, measurement_noise[1] ** 2])
+
+def Ht(pred_mu, landmark_coordinates):
+
+    row=[]
+    columns=[]
+
+    x, y, theta = pred_mu[0], pred_mu[1], pred_mu[2]
+    for id in landmark_coordinates:
+        columns.append(id)
+        x_obs, y_obs = landmark_coordinates[id]
+        ht=np.array([(x-x_obs)/math.sqrt((-x+x_obs)**2+(-y+y_obs)**2),(y-y_obs)/math.sqrt((-x+x_obs)**2+(-y+y_obs)**2),0],
+                    [-(y-y_obs)/math.sqrt((-x+x_obs)**2+(-y+y_obs)**2),-(x-x_obs)/math.sqrt((-x+x_obs)**2+(-y+y_obs)**2),-1])
+        row.append(ht)
+
+
+
+    
+    return Ht
 
 #def compute_measurement_jacobian():
     # x, y, theta = symbols('x y theta')
